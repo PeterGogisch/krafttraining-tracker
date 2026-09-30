@@ -2,6 +2,7 @@ import sqlite3
 from pathlib import Path
 
 import streamlit as st
+from backup import backup_database
 
 DB_PATH = Path(__file__).parent / "training.db"
 
@@ -100,8 +101,8 @@ def clear_inputs():
 st.set_page_config(page_title="Krafttraining", page_icon="🏋️")
 st.title("🏋️ Krafttraining")
 
-if st.session_state.pop("saved", False):
-    st.success("Training gespeichert!")
+if st.session_state.pop("backup_failed", False):
+    st.warning("Training gespeichert, aber die Sicherung ist fehlgeschlagen.")
 
 conn = get_conn()
 template_name = st.selectbox("Trainingstag", load_template_names(conn))
@@ -150,6 +151,10 @@ with st.form(f"training_{template_name}"):
 
 if submitted:
     save_session(conn, template_name, exercises)
+    try:
+        backup_database()
+    except (OSError, sqlite3.Error):
+        st.session_state["backup_failed"] = True
     clear_inputs()
     st.session_state["saved"] = True
     st.rerun()
