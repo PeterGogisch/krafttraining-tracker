@@ -42,7 +42,7 @@ export async function exportBackup(): Promise<number> {
 
 export async function prepareShare(): Promise<File> {
   const b = await buildBackup();
-  return new File([b.json], b.name, { type: 'application/json' });
+  return new File([b.json], b.name + '.txt', { type: 'text/plain' });
 }
 
 export async function shareFile(file: File): Promise<string> {
@@ -167,7 +167,7 @@ export async function renderBackup(container: HTMLElement) {
     <section class="card">
       <h2>Sicherung einspielen</h2>
       <p class="info">Vorhandene Trainings bleiben erhalten, doppelte werden übersprungen.</p>
-      <input type="file" id="import" accept="application/json,.json">
+      accept="application/json,.json,text/plain,.txt"
     </section>
   `;
 
