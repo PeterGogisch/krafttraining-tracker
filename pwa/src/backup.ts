@@ -40,16 +40,24 @@ export async function exportBackup(): Promise<number> {
   return b.count;
 }
 
-export async function shareBackup(): Promise<'shared' | 'unsupported' | 'cancelled'> {
+export async function prepareShare(): Promise<File> {
   const b = await buildBackup();
-  const file = new File([b.json], b.name, { type: 'application/json' });
-  if (!navigator.canShare?.({ files: [file] })) return 'unsupported';
+  return new File([b.json], b.name, { type: 'application/json' });
+}
+
+export async function shareFile(file: File): Promise<string> {
+  if (!navigator.share) return 'Teilen wird von diesem Browser nicht unterstützt.';
+  if (!navigator.canShare?.({ files: [file] })) {
+    return 'Dieser Browser erlaubt das Teilen von JSON-Dateien nicht.';
+  }
   try {
     await navigator.share({ files: [file], title: 'Krafttraining-Sicherung' });
     localStorage.setItem(LAST_KEY, new Date().toISOString());
-    return 'shared';
-  } catch {
-    return 'cancelled'; // Teilen-Menü wurde geschlossen
+    return 'Sicherung geteilt ✔';
+  } catch (e) {
+    const err = e as DOMException;
+    if (err.name === 'AbortError') return 'Abgebrochen.';
+    return `Teilen fehlgeschlagen: ${err.name} – ${err.message}`;
   }
 }
 
@@ -110,6 +118,7 @@ export async function importBackup(file: File) {
 
 export async function renderBackup(container: HTMLElement) {
   const count = await db.workouts.count();
+  let shareFileObj = await prepareShare();
   const all = (await db.workouts.toArray()).sort((a, b) => b.date.localeCompare(a.date));
   const last = localStorage.getItem(LAST_KEY);
   const days = last ? Math.floor((Date.now() - Date.parse(last)) / 86400000) : null;
@@ -165,13 +174,7 @@ export async function renderBackup(container: HTMLElement) {
   const msg = container.querySelector<HTMLElement>('#msg')!;
 
   container.querySelector('#share')!.addEventListener('click', async () => {
-    const res = await shareBackup();
-    msg.textContent =
-        res === 'shared'
-        ? 'Sicherung geteilt ✔'
-        : res === 'unsupported'
-            ? 'Teilen wird auf diesem Gerät nicht unterstützt.'
-            : 'Abgebrochen.';
+    msg.textContent = await shareFile(shareFileObj);
   });
 
   container.querySelector('#export')!.addEventListener('click', async () => {
@@ -188,6 +191,7 @@ export async function renderBackup(container: HTMLElement) {
     if (!file) return;
     try {
       const res = await importBackup(file);
+      shareFileObj = await prepareShare();
       msg.textContent = `Import fertig: ${res.added} neu, ${res.skipped} übersprungen, ${res.invalid} ungültig.`;
     } catch {
       msg.textContent = 'Die Datei konnte nicht gelesen werden.';
